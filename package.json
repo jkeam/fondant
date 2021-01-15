@@ -1,0 +1,17 @@
+{
+  "name": "fondant",
+  "version": "1.0.0",
+  "description": "A Google Sheet Application",
+  "main": "index.js",
+  "repository": "git@github.com:jkeam/fondant.git",
+  "author": "Jon Keam <jpkeam@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "start": "node ./index.js"
+  },
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "googleapis": "39"
+  }
+}
