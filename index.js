@@ -18,12 +18,10 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     const sheets = await read(SPREADSHEET_ID, authClient, RANGE.split(',').map(i => i.trim()));
 
     for (const sheet of sheets) {
-      const { headers, originalHeaders, rows } = sheet;
-      console.log(headers);
+      const { headers, originalHeaders, rows, models, name } = sheet;
+      console.log(name);
       console.log('----------------');
-      rows.forEach((row) => {
-        console.log(row);
-      });
+      models.forEach(model => console.log(model));
     }
   } catch (e) {
     console.error(e);
