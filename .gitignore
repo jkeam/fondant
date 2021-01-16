@@ -106,3 +106,4 @@ dist
 .nvmrc
 credentials.json
 token.json
+database.sqlite
