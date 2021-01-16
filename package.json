@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "dotenv": "^8.2.0",
-    "googleapis": "39"
+    "googleapis": "39",
+    "sequelize": "^6.3.5",
+    "sqlite3": "^5.0.1"
   }
 }

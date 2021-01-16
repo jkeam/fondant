@@ -1,9 +1,11 @@
 const fsp = require('fs').promises;
 const { authorize } = require('./lib/auth');
 const { read } = require('./lib/sheet');
+const { db } = require('./lib/db');
 
 require('dotenv').config()
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+const RANGE = process.env.RANGE || '';
 const CREDENTIALS_PATH = process.env.CREDENTIALS_PATH || 'credentials.json';
 const TOKEN_PATH = process.env.TOKEN_PATH || 'token.json';
 const scope = process.env.READ_ONLY_SCOPE || 'https://www.googleapis.com/auth/spreadsheets.readonly';
@@ -13,16 +15,16 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
   try {
     const content = await fsp.readFile(CREDENTIALS_PATH);
     const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
-    const range = 'Class Data!A1:V';
-    const { headers, rows } = await read(SPREADSHEET_ID, authClient, range);
+    const sheets = await read(SPREADSHEET_ID, authClient, RANGE.split(',').map(i => i.trim()));
 
-    console.log(headers);
-    console.log('----------------');
-
-    // Print columns A and E, which correspond to indices 0 and 4.
-    rows.map((row) => {
-      console.log(`${row[0]}, ${row[4]}`);
-    });
+    for (const sheet of sheets) {
+      const { headers, originalHeaders, rows } = sheet;
+      console.log(headers);
+      console.log('----------------');
+      rows.forEach((row) => {
+        console.log(row);
+      });
+    }
   } catch (e) {
     console.error(e);
   }
