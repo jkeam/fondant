@@ -4,15 +4,16 @@ const { read } = require('./lib/sheet');
 
 require('dotenv').config()
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
-const CREDENTIALS_PATH = process.env.CREDENTIALS_PATH;
-const TOKEN_PATH = process.env.TOKEN_PATH;
-const SCOPES = [process.env.READ_ONLY_SCOPE];   // If modifying these scopes, delete token.json.
+const CREDENTIALS_PATH = process.env.CREDENTIALS_PATH || 'credentials.json';
+const TOKEN_PATH = process.env.TOKEN_PATH || 'token.json';
+const scope = process.env.READ_ONLY_SCOPE || 'https://www.googleapis.com/auth/spreadsheets.readonly';
+const SCOPES = [scope];   // If modifying these scopes, delete token.json.
 
 (async () => {
   try {
     const content = await fsp.readFile(CREDENTIALS_PATH);
     const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
-    const range = 'Academic!A1:V';
+    const range = 'Class Data!A1:V';
     const { headers, rows } = await read(SPREADSHEET_ID, authClient, range);
 
     console.log(headers);
