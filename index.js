@@ -4,7 +4,7 @@ const { read } = require('./lib/sheet');
 const { db, createCollection } = require('./lib/db');
 
 require('dotenv').config()
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '';
 const RANGE = process.env.RANGE || '';
 const CREDENTIALS_PATH = process.env.CREDENTIALS_PATH || 'credentials.json';
 const TOKEN_PATH = process.env.TOKEN_PATH || 'token.json';
@@ -20,6 +20,15 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         console.log(model);
       }
     };
+
+    if (SPREADSHEET_ID === '') {
+      console.error('Missing SPREADSHEET_ID env var');
+      return;
+    }
+    if (RANGE === '') {
+      console.error('Missing RANGE env var');
+      return;
+    }
 
     const content = await fsp.readFile(CREDENTIALS_PATH);
     const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
