@@ -13,6 +13,11 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
 
 (async () => {
   try {
+    /**
+     *  Debug function
+     *  @params {string} name Title of the data dumped
+     *  @params {Array} models Models to print out
+     */
     const dump = (name, models) => {
       console.log(name);
       console.log('----------------');
@@ -21,6 +26,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       }
     };
 
+    // validate
     if (SPREADSHEET_ID === '') {
       console.error('Missing SPREADSHEET_ID env var');
       return;
@@ -30,18 +36,26 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       return;
     }
 
-    const content = await fsp.readFile(CREDENTIALS_PATH);
-    const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
-    const sheets = await read(SPREADSHEET_ID, authClient, RANGE.split(',').map(i => i.trim()));
+    /**
+     *  Destructively recreate database.
+     */
+    const createDatabase = async () => {
+      const content = await fsp.readFile(CREDENTIALS_PATH);
+      const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
+      const sheets = await read(SPREADSHEET_ID, authClient, RANGE.split(',').map(i => i.trim()));
 
-    await db.drop();
-    for (const sheet of sheets) {
-      const { headers, originalHeaders, rows, models, name } = sheet;
-      const collection = await createCollection(name, headers, { force: true });
-      for (const model of models) {
-        await collection.create(model);
+      await db.drop();
+      for (const sheet of sheets) {
+        const { headers, originalHeaders, rows, models, name } = sheet;
+        const collection = await createCollection(name, headers, { force: true });
+        for (const model of models) {
+          await collection.create(model);
+        }
       }
-    }
+    };
+
+    // main
+    await createDatabase();
   } catch (e) {
     console.error(e);
   }
