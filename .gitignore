@@ -107,4 +107,5 @@ dist
 credentials.json
 token.json
 database.sqlite
+database.json
 ignore
