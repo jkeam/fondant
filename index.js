@@ -178,7 +178,11 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       const formattedFields = searchResultHeadings.map(s => toCamelCase(s));
       const searcher = new MiniSearch({
         fields: formattedFields, // fields to index for full-text search
-        storeFields: formattedFields // fields to return with search results
+        storeFields: formattedFields, // fields to return with search results
+        searchOptions: {
+          prefix: true,
+          fuzzy: 0.2
+        }
       });
 
       const allModels = [];
