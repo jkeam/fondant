@@ -144,7 +144,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       }
       for (result of results) {
         if (searchRowPositions.length) {
-          table.addRow(...(searchRowPositions.map(r => result[r])));
+          table.addRow(...(searchRowPositions.map(r => result[r].slice(0, 128))));
         } else {
           table.addRow(...result);
         }
