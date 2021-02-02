@@ -2,21 +2,23 @@ const fs = require('fs');
 const fsp = fs.promises;
 const { authorize } = require('./lib/auth');
 const { read } = require('./lib/sheet');
-const { createDatabase, search, findByFieldName } = require('./lib/db');
+const { createDatabase, findByFieldName } = require('./lib/db');
+const { toCamelCase } = require('./lib/strings');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const figlet = require('figlet');
 const AsciiTable = require('ascii-table');
+const MiniSearch = require('minisearch');
 
 require('dotenv').config();
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '';
 const RANGE = process.env.RANGE || '';
-const SEARCH_FIELD = process.env.SEARCH_FIELD || '';
 const CREDENTIALS_PATH = process.env.CREDENTIALS_PATH || 'credentials.json';
 const TOKEN_PATH = process.env.TOKEN_PATH || 'token.json';
 const JSON_PATH = process.env.JSON_PATH || 'database.json';
 const APP_NAME = process.env.APP_NAME || 'Fondant';
 const SEARCH_CONFIG = process.env.SEARCH_CONFIG || '';
+const SEARCH_INDEX_FIELDS = process.env.INDEXED_FIELDS || '';
 const scope = process.env.READ_ONLY_SCOPE || 'https://www.googleapis.com/auth/spreadsheets.readonly';
 const SCOPES = [scope];   // If modifying these scopes, delete token.json.
 
@@ -36,14 +38,15 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     /**
      *  Destructively recreate database.
      *
-     *  @returns {Object[]} sheet Sheet data
+     *  @returns {{sheets:Object[], searcher:Object} Sheet data and searcher
      */
-    const createDatastore = async () => {
+    const createDatastore = async (searchResultHeadings) => {
       const content = await fsp.readFile(CREDENTIALS_PATH);
       const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
       const sheets = await read(SPREADSHEET_ID, authClient, RANGE.split(',').map(i => i.trim()));
       await createDatabase(sheets, JSON_PATH);
-      return sheets;
+      const searcher = createSearcher(searchResultHeadings, sheets);
+      return { sheets, searcher };
     };
 
     /**
@@ -62,14 +65,18 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     /**
      *  Read JSON.
      *
-     *  @returns {Object[]} Read and return json.
+     * @param {string[]} searchResultHeadings Headings to use in the indexing
+     * @returns {{sheets:Object[], searcher:Object}} Read and return json.
      */
-    const readJson = async () => {
+    const readJson = async (searchResultHeadings) => {
       try {
         await fsp.access(JSON_PATH, fs.constants.R_OK);
-        return JSON.parse(await fsp.readFile(JSON_PATH));
+        const sheets = JSON.parse(await fsp.readFile(JSON_PATH));
+        const searcher = createSearcher(searchResultHeadings, sheets);
+        return { sheets, searcher };
       } catch (e) {
-        return [];
+        console.log(e);
+        return { sheets: [], searcher: null };
       }
     };
 
@@ -112,20 +119,28 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      * Create search metadata.
      *
      *  @param {string} searchConfig Parse input search config
-     *  @returns {{searchResultHeadings:string[], searchRowPositions:number[]}} Search Metadata
+     *  @param {string} indexFieldConfig Parse input field config
+     *  @returns {{searchResultHeadings:string[], searchRowPositions:string[], searchIndexFields:string[]}} Search Metadata
      */
-    const createSearchResultTableMetadata = (searchConfig) => {
+    const createSearchResultTableMetadata = (searchConfig, indexFieldConfig) => {
       const searchResultHeadings = [];
       const searchRowPositions = [];
-      if (SEARCH_CONFIG) {
-        const items = SEARCH_CONFIG.split(',').map(i => i.trim());
+      const searchIndexFields = [];
+      if (searchConfig) {
+        const items = searchConfig.split(',').map(i => i.trim());
         for (let item of items) {
           const valueName = item.split(':');
           searchResultHeadings.push(valueName[0]);
-          searchRowPositions.push(parseInt(valueName[1], 10));
+          searchRowPositions.push(valueName[1]);
         }
       }
-      return { searchResultHeadings, searchRowPositions };
+      if (indexFieldConfig) {
+        const items = indexFieldConfig.split(',').map(i => i.trim());
+        for (let item of items) {
+          searchIndexFields.push(item);
+        }
+      }
+      return { searchResultHeadings, searchRowPositions, searchIndexFields };
     };
 
     /**
@@ -137,7 +152,6 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      *  @param {Object[]} results Search results
      */
     const printSearchResults = (term, searchResultHeadings, searchRowPositions, results) => {
-      // show search results
       const table = new AsciiTable(term.toUpperCase());
       if (searchResultHeadings.length) {
         table.setHeading(...searchResultHeadings);
@@ -153,9 +167,33 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       console.log(`Found ${results.length} matches.`);
     };
 
+    /**
+     * Create searcher -- for fast searching
+     *
+     * @param {string[]} searchResultHeadings Headings from the search results
+     * @param {Object[]} sheets All the sheets to index
+     * @returns {Object} Searcher object
+     */
+    const createSearcher = (searchResultHeadings, sheets) => {
+      const formattedFields = searchResultHeadings.map(s => toCamelCase(s));
+      const searcher = new MiniSearch({
+        fields: formattedFields, // fields to index for full-text search
+        storeFields: formattedFields // fields to return with search results
+      });
+
+      const allModels = [];
+      for (let sheet of sheets) {
+        for (let model of sheet.models) {
+          allModels.push(model);
+        }
+      }
+      searcher.addAll(allModels);
+      return searcher;
+    };
+
     // main
-    let sheets = await readJson();
-    const { searchResultHeadings, searchRowPositions } = createSearchResultTableMetadata(SEARCH_CONFIG);
+    const { searchResultHeadings, searchRowPositions, searchIndexFields } = createSearchResultTableMetadata(SEARCH_CONFIG, SEARCH_INDEX_FIELDS);
+    let { sheets, searcher } = await readJson(searchIndexFields);
     init();
     while(true) {
       const { term } = await askForTerm();
@@ -175,7 +213,9 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         const termParts = term.split(' ');
         const command = termParts[0].replace('!', '');
         if (command === 'reload' || command === 'refresh') {
-          sheets = await createDatastore();
+          const datastore = await createDatastore(searchIndexFields);
+          sheets = datastore.sheets;
+          searcher = datastore.searcher;
           continue;
         } else if (command === 'find') {
           await findCommand(sheets, termParts[1], termParts[2]);
@@ -186,13 +226,12 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         }
       }
 
-      // search
-      const results = await search(sheets, SEARCH_FIELD, term);
-      if (!results.length) {
-        console.log('No results found.');
-        continue;
+      if (searcher) {
+        const results = searcher.search(term);
+        printSearchResults(term, searchResultHeadings, searchRowPositions, results);
+      } else {
+        console.log('Unable to search, try running !reload again');
       }
-      printSearchResults(term, searchResultHeadings, searchRowPositions, results);
     }
   } catch (e) {
     console.error(e);

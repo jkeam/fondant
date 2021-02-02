@@ -17,7 +17,9 @@
     "dotenv": "^8.2.0",
     "figlet": "^1.5.0",
     "googleapis": "39",
-    "inquirer": "^7.3.3"
+    "inquirer": "^7.3.3",
+    "minisearch": "^3.0.2",
+    "uuidv4": "^6.2.6"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.12.11",
