@@ -24,10 +24,10 @@ SEARCH_CONFIG='ID:0,Description:1'
 yarn
 ```
 
-2.  Install sqlite3 most likely by building from source
+2.  Test
 
 ```
-npm_config_python=/usr/bin/python2 npm_config_build_from_source=true yarn add sqlite3
+yarn test
 ```
 
 3. Start
@@ -35,3 +35,7 @@ npm_config_python=/usr/bin/python2 npm_config_build_from_source=true yarn add sq
 ```
 yarn start
 ```
+
+## Notes
+
+If you get weird API endpoint errors with google sheets, try deleting the `token.json` and rerun the app and `!reload` to resync with the sheet.  Chances are your token is expired.
