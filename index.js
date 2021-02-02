@@ -116,11 +116,32 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       return inquirer.prompt(questions);
     };
 
+    /**
+     *  Perform find command.
+     *
+     *  @param {Object[]} sheets Sheets of data
+     *  @param {string} fieldName Field name to find by
+     *  @param {string} fieldValue Field value to find
+     */
+    const findCommand = async (sheets, fieldName, fieldValue) => {
+      const { headers, row } = await findByField(sheets, fieldName, fieldValue);
+      const table = new AsciiTable(`${fieldName}: ${fieldValue}`);
+      for (let i = 0; i < headers.length; i++) {
+        table.addRow(headers[i], row[i]);
+      }
+      console.log(table.toString());
+    };
+
     // main
     let sheets = await readJson()
     init();
     while(true) {
       const { term } = await askForTerm();
+
+      // check for empty term
+      if (!term.trim()) {
+        continue;
+      }
 
       // check for quit
       if (term === 'quit' || term === 'exit') {
@@ -134,24 +155,12 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         if (command === 'reload' || command === 'refresh') {
           sheets = await createDatastore();
         } else if (command === 'find') {
-          const fieldName = termParts[1];
-          const fieldValue = termParts[2];
-          const { headers, row } = await findByField(sheets, fieldName, fieldValue);
-          const table = new AsciiTable(`${fieldName}: ${fieldValue}`);
-          for (let i = 0; i < headers.length; i++) {
-            table.addRow(headers[i], row[i]);
-          }
-          console.log(table.toString());
+          await findCommand(sheets, termParts[1], termParts[2]);
           continue;
         } else {
           console.log('Command not understood');
           continue;
         }
-      }
-
-      // check for empty term
-      if (!term.trim()) {
-        continue;
       }
 
       const results = await find(sheets, term);
