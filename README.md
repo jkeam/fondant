@@ -11,9 +11,9 @@ A Google Sheet Application
 SPREADSHEET_ID='XYZ_34asfaDFa'
 RANGE='Sheet1!A1:V, Sheet2!A1:E'
 JSON_PATH='database.json'
-SEARCH_FIELD='default_search_field'
 APP_NAME='AwesomeApp'
-SEARCH_CONFIG='ID:0,Description:1'
+SEARCH_CONFIG='SKU:SKU,Description:SKUDescription'
+INDEXED_FIELDS='SKU,SKUDescription'
 ```
 
 ## Setup
