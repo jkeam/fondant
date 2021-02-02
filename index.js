@@ -228,7 +228,11 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
 
       if (searcher) {
         const results = searcher.search(term);
-        printSearchResults(term, searchResultHeadings, searchRowPositions, results);
+        if (!results || !results.length) {
+          console.log('No results found.');
+        } else {
+          printSearchResults(term, searchResultHeadings, searchRowPositions, results);
+        }
       } else {
         console.log('Unable to search, try running !reload again');
       }
