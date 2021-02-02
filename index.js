@@ -2,7 +2,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const { authorize } = require('./lib/auth');
 const { read } = require('./lib/sheet');
-const { db, createDatabase, search, findByFieldName } = require('./lib/db');
+const { createDatabase, search, findByFieldName } = require('./lib/db');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const figlet = require('figlet');
@@ -42,7 +42,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       const content = await fsp.readFile(CREDENTIALS_PATH);
       const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
       const sheets = await read(SPREADSHEET_ID, authClient, RANGE.split(',').map(i => i.trim()));
-      await createDatabase(authClient, sheets, JSON_PATH);
+      await createDatabase(sheets, JSON_PATH);
       return sheets;
     };
 
@@ -175,6 +175,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         const command = termParts[0].replace('!', '');
         if (command === 'reload' || command === 'refresh') {
           sheets = await createDatastore();
+          continue;
         } else if (command === 'find') {
           await findCommand(sheets, termParts[1], termParts[2]);
           continue;
