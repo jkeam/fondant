@@ -34,19 +34,6 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     }
 
     /**
-     *  Debug function
-     *  @param {string} name Title of the data dumped
-     *  @param {Array} models Models to print out
-     */
-    const dump = (name, models) => {
-      console.log(name);
-      console.log('----------------');
-      for (const model of models) {
-        console.log(model);
-      }
-    };
-
-    /**
      *  Destructively recreate database.
      *
      *  @returns {Object[]} sheet Sheet data
@@ -60,24 +47,8 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     };
 
     /**
-     *  Find matching rows.
-     *
-     *  @param {string} term Search term
-     *  @param {Object[]} sheet Sheet data
-     *  @returns {Object[]} Return matching rows
+     *  Print out app name.
      */
-    const find = async (sheets, term) => search(sheets, SEARCH_FIELD, term);
-
-    /**
-     *  Find matching row.
-     *
-     *  @param {Object[]} sheet Sheet data
-     *  @param {string} fieldName Search field
-     *  @param {string} term Search term
-     *  @returns {{headers: string[], row: string[]}} Return matching rows
-     */
-    const findByField = async (sheets, fieldName, term) => findByFieldName(sheets, fieldName, term);
-
     const init = () => {
       console.log(
         chalk.green(
@@ -124,7 +95,12 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      *  @param {string} fieldValue Field value to find
      */
     const findCommand = async (sheets, fieldName, fieldValue) => {
-      const { headers, row } = await findByField(sheets, fieldName, fieldValue);
+      const result = await findByFieldName(sheets, fieldName, fieldValue);
+      if (!result) {
+        console.log(`Unable to find ${fieldName} with ${fieldValue}.`);
+        return;
+      }
+      const { headers, row } = result;
       const table = new AsciiTable(`${fieldName}: ${fieldValue}`);
       for (let i = 0; i < headers.length; i++) {
         table.addRow(headers[i], row[i]);
@@ -152,8 +128,32 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       return { searchResultHeadings, searchRowPositions };
     };
 
+    /**
+     *  Print out search results
+     *
+     *  @param {string} term Search term
+     *  @param {string[]} searchResultHeadings Search result headers
+     *  @param {string[]} searchRowPositions Search result positions to get data
+     *  @param {Object[]} results Search results
+     */
+    const printSearchResults = (term, searchResultHeadings, searchRowPositions, results) => {
+      // show search results
+      const table = new AsciiTable(term.toUpperCase());
+      if (searchResultHeadings.length) {
+        table.setHeading(...searchResultHeadings);
+      }
+      for (result of results) {
+        if (searchRowPositions.length) {
+          table.addRow(...(searchRowPositions.map(r => result[r])));
+        } else {
+          table.addRow(...result);
+        }
+      }
+      console.log(table.toString());
+    };
+
     // main
-    let sheets = await readJson()
+    let sheets = await readJson();
     const { searchResultHeadings, searchRowPositions } = createSearchResultTableMetadata(SEARCH_CONFIG);
     init();
     while(true) {
@@ -184,24 +184,13 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         }
       }
 
-      const results = await find(sheets, term);
+      // search
+      const results = await search(sheets, SEARCH_FIELD, term);
       if (!results.length) {
         console.log('No results found.');
         continue;
       }
-
-      const table = new AsciiTable(term.toUpperCase());
-      if (searchResultHeadings.length) {
-        table.setHeading(...searchResultHeadings);
-      }
-      for (result of results) {
-        if (searchRowPositions.length) {
-          table.addRow(...(searchRowPositions.map(r => result[r])));
-        } else {
-          table.addRow(...result);
-        }
-      }
-      console.log(table.toString());
+      printSearchResults(term, searchResultHeadings, searchRowPositions, results);
     }
   } catch (e) {
     console.error(e);
