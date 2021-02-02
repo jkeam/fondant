@@ -150,6 +150,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         }
       }
       console.log(table.toString());
+      console.log(`Found ${results.length} matches.`);
     };
 
     // main
