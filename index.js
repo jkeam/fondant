@@ -132,8 +132,29 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       console.log(table.toString());
     };
 
+    /**
+     * Create search metadata.
+     *
+     *  @param {string} searchConfig Parse input search config
+     *  @returns {{searchResultHeadings:string[], searchRowPositions:number[]}} Search Metadata
+     */
+    const createSearchResultTableMetadata = (searchConfig) => {
+      const searchResultHeadings = [];
+      const searchRowPositions = [];
+      if (SEARCH_CONFIG) {
+        const items = SEARCH_CONFIG.split(',').map(i => i.trim());
+        for (let item of items) {
+          const valueName = item.split(':');
+          searchResultHeadings.push(valueName[0]);
+          searchRowPositions.push(parseInt(valueName[1], 10));
+        }
+      }
+      return { searchResultHeadings, searchRowPositions };
+    };
+
     // main
     let sheets = await readJson()
+    const { searchResultHeadings, searchRowPositions } = createSearchResultTableMetadata(SEARCH_CONFIG);
     init();
     while(true) {
       const { term } = await askForTerm();
@@ -170,22 +191,12 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       }
 
       const table = new AsciiTable(term.toUpperCase());
-      const headings = [];
-      const rowPositions = [];
-      if (SEARCH_CONFIG) {
-        const items = SEARCH_CONFIG.split(',').map(i => i.trim());
-        for (let item of items) {
-          const valueName = item.split(':');
-          headings.push(valueName[0]);
-          rowPositions.push(parseInt(valueName[1], 10));
-        }
-      }
-      if (headings.length) {
-        table.setHeading(...headings);
+      if (searchResultHeadings.length) {
+        table.setHeading(...searchResultHeadings);
       }
       for (result of results) {
-        if (rowPositions.length) {
-          table.addRow(...(rowPositions.map(r => result[r])));
+        if (searchRowPositions.length) {
+          table.addRow(...(searchRowPositions.map(r => result[r])));
         } else {
           table.addRow(...result);
         }
