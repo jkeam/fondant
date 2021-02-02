@@ -12,8 +12,12 @@
     "test": "jest"
   },
   "dependencies": {
+    "ascii-table": "^0.0.9",
+    "chalk": "^4.1.0",
     "dotenv": "^8.2.0",
+    "figlet": "^1.5.0",
     "googleapis": "39",
+    "inquirer": "^7.3.3",
     "sequelize": "^6.3.5",
     "sqlite3": "^5.0.1"
   },
