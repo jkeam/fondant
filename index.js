@@ -13,12 +13,12 @@ const MiniSearch = require('minisearch');
 require('dotenv').config();
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '';
 const RANGE = process.env.RANGE || '';
+const SEARCH_INDEX_FIELDS = process.env.INDEXED_FIELDS || '';
 const CREDENTIALS_PATH = process.env.CREDENTIALS_PATH || 'credentials.json';
 const TOKEN_PATH = process.env.TOKEN_PATH || 'token.json';
 const JSON_PATH = process.env.JSON_PATH || 'database.json';
 const APP_NAME = process.env.APP_NAME || 'Fondant';
 const RESULT_HEADERS = process.env.RESULT_HEADERS || '';
-const SEARCH_INDEX_FIELDS = process.env.INDEXED_FIELDS || '';
 const ID_FIELD = process.env.ID_FIELD || 'id';
 const scope = process.env.READ_ONLY_SCOPE || 'https://www.googleapis.com/auth/spreadsheets.readonly';
 const SCOPES = [scope];   // If modifying these scopes, delete token.json.
@@ -27,12 +27,16 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
   try {
 
     // validate
-    if (SPREADSHEET_ID === '') {
+    if (!SPREADSHEET_ID) {
       console.error('Missing SPREADSHEET_ID env var');
       return;
     }
-    if (RANGE === '') {
+    if (!RANGE) {
       console.error('Missing RANGE env var');
+      return;
+    }
+    if (!SEARCH_INDEX_FIELDS) {
+      console.error('Missing SEARCH_INDEX_FIELDS env var');
       return;
     }
 
@@ -177,7 +181,8 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         if (searchRowPositions.length) {
           table.addRow(...(searchRowPositions.map(r => result[r].slice(0, 128))));
         } else {
-          table.addRow(...result);
+          const values = Object.values(result).filter(r => typeof r === 'string');
+          table.addRow(...values);
         }
       }
       console.log(table.toString());
