@@ -48,13 +48,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
       const sheets = await read(SPREADSHEET_ID, idField, authClient, RANGE.split(',').map(i => i.trim()));
       await createDatabase(sheets, JSON_PATH);
-      const searcher = createSearcher(searchResultHeadings, idField, sheets);
-      const rowById = {};
-      for (let sheet of sheets) {
-        for (let model of sheet.models) {
-          rowById[model[idField]] = model;
-        }
-      }
+      const { searcher, rowById } = createSearcher(searchResultHeadings, idField, sheets);
       return { sheets, searcher, rowById };
     };
 
@@ -82,13 +76,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       try {
         await fsp.access(JSON_PATH, fs.constants.R_OK);
         const sheets = JSON.parse(await fsp.readFile(JSON_PATH));
-        const searcher = createSearcher(searchResultHeadings, idField, sheets);
-        const rowById = {};
-        for (let sheet of sheets) {
-          for (let model of sheet.models) {
-            rowById[model[idField]] = model;
-          }
-        }
+        const { searcher, rowById } = createSearcher(searchResultHeadings, idField, sheets);
         return { sheets, searcher, rowById };
       } catch (e) {
         console.log(e);
@@ -118,9 +106,9 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      *  @param {string} fieldValue Field value to find
      *  @param {Object} rowById Row keyed by id
      */
-    const findCommand = async (sheets, fieldName, fieldValue, rowById) => {
+    const findCommand = async (idField, sheets, fieldName, fieldValue, rowById) => {
       let headers, row, result;
-      if (fieldName === 'id') {
+      if (fieldName === 'id' || fieldName === idField) {
         // fast lookup
         result = rowById[fieldValue];
         headers = Object.keys(result);
@@ -186,7 +174,6 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         table.setHeading(...searchResultHeadings);
       }
       for (result of results) {
-        console.log(result);
         if (searchRowPositions.length) {
           table.addRow(...(searchRowPositions.map(r => result[r].slice(0, 128))));
         } else {
@@ -203,12 +190,12 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      * @param {string[]} searchResultHeadings Headings from the search results
      * @param {string} idField The id field
      * @param {Object[]} sheets All the sheets to index
-     * @returns {Object} Searcher object
+     * @returns {{searcher:Object, rowById:Object} Searcher object
      */
     const createSearcher = (searchResultHeadings, idField, sheets) => {
       const formattedFields = searchResultHeadings.map(s => toCamelCase(s));
       const searcher = new MiniSearch({
-        idField: ID_FIELD,
+        idField,
         fields: formattedFields, // fields to index for full-text search
         storeFields: formattedFields, // fields to return with search results
         searchOptions: {
@@ -218,13 +205,16 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       });
 
       const allModels = [];
+      const rowById = {};
       for (let sheet of sheets) {
         for (let model of sheet.models) {
           allModels.push(model);
+          rowById[model[idField]] = model;
         }
       }
+
       searcher.addAll(allModels);
-      return searcher;
+      return { searcher, rowById };
     };
 
     // main
@@ -255,7 +245,11 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
           rowById = datastore.rowById;
           continue;
         } else if (command === 'find') {
-          await findCommand(sheets, termParts[1], termParts[2], rowById);
+          if (!termParts[1] || !termParts[2]) {
+            console.log('!find {fieldName} {searchTerm}');
+            continue;
+          }
+          await findCommand(ID_FIELD.toLowerCase(), sheets, termParts[1].toLowerCase(), termParts[2], rowById);
           continue;
         } else {
           console.log('Command not understood');
