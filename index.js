@@ -41,7 +41,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      *
      * @param {string[]} searchResultHeadings List of search result headings
      * @param {string} idField The id field for the model
-     * @returns {{sheets:Object[], searcher:Object} Sheet data and searcher
+     * @returns {{sheets:Object[], searcher:Object, rowById:Object} Sheet data and searcher
      */
     const createDatastore = async (searchResultHeadings, idField) => {
       const content = await fsp.readFile(CREDENTIALS_PATH);
@@ -49,7 +49,13 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
       const sheets = await read(SPREADSHEET_ID, idField, authClient, RANGE.split(',').map(i => i.trim()));
       await createDatabase(sheets, JSON_PATH);
       const searcher = createSearcher(searchResultHeadings, idField, sheets);
-      return { sheets, searcher };
+      const rowById = {};
+      for (let sheet of sheets) {
+        for (let model of sheet.models) {
+          rowById[model[idField]] = model;
+        }
+      }
+      return { sheets, searcher, rowById };
     };
 
     /**
@@ -70,14 +76,20 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      *
      * @param {string[]} searchResultHeadings Headings to use in the indexing
      * @param {string} idField The id field of the model
-     * @returns {{sheets:Object[], searcher:Object}} Read and return json.
+     * @returns {{sheets:Object[], searcher:Object, rowById:Object}} Read and return json.
      */
     const readJson = async (searchResultHeadings, idField) => {
       try {
         await fsp.access(JSON_PATH, fs.constants.R_OK);
         const sheets = JSON.parse(await fsp.readFile(JSON_PATH));
         const searcher = createSearcher(searchResultHeadings, idField, sheets);
-        return { sheets, searcher };
+        const rowById = {};
+        for (let sheet of sheets) {
+          for (let model of sheet.models) {
+            rowById[model[idField]] = model;
+          }
+        }
+        return { sheets, searcher, rowById };
       } catch (e) {
         console.log(e);
         return { sheets: [], searcher: null };
@@ -104,14 +116,27 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      *  @param {Object[]} sheets Sheets of data
      *  @param {string} fieldName Field name to find by
      *  @param {string} fieldValue Field value to find
+     *  @param {Object} rowById Row keyed by id
      */
-    const findCommand = async (sheets, fieldName, fieldValue) => {
-      const result = await findByFieldName(sheets, fieldName, fieldValue);
+    const findCommand = async (sheets, fieldName, fieldValue, rowById) => {
+      let headers, row, result;
+      if (fieldName === 'id') {
+        // fast lookup
+        result = rowById[fieldValue];
+        headers = Object.keys(result);
+        row = Object.values(result);
+      } else {
+        // slow scan of every object
+        result = await findByFieldName(sheets, fieldName, fieldValue);
+        headers = result.headers;
+        row = result.row;
+      }
+
       if (!result) {
         console.log(`Unable to find ${fieldName} with ${fieldValue}.`);
         return;
       }
-      const { headers, row } = result;
+
       const table = new AsciiTable(`${fieldName}: ${fieldValue}`);
       for (let i = 0; i < headers.length; i++) {
         table.addRow(headers[i], row[i]);
@@ -204,7 +229,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
 
     // main
     const { searchResultHeadings, searchRowPositions, searchIndexFields } = createSearchResultTableMetadata(RESULT_HEADERS, SEARCH_INDEX_FIELDS);
-    let { sheets, searcher } = await readJson(searchIndexFields, ID_FIELD);
+    let { sheets, searcher, rowById } = await readJson(searchIndexFields, ID_FIELD);
     init();
     while(true) {
       const { term } = await askForTerm();
@@ -227,9 +252,10 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
           const datastore = await createDatastore(searchIndexFields, ID_FIELD);
           sheets = datastore.sheets;
           searcher = datastore.searcher;
+          rowById = datastore.rowById;
           continue;
         } else if (command === 'find') {
-          await findCommand(sheets, termParts[1], termParts[2]);
+          await findCommand(sheets, termParts[1], termParts[2], rowById);
           continue;
         } else {
           console.log('Command not understood');

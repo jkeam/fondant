@@ -12,8 +12,9 @@ SPREADSHEET_ID='XYZ_34asfaDFa'
 RANGE='Sheet1!A1:V, Sheet2!A1:E'
 JSON_PATH='database.json'
 APP_NAME='AwesomeApp'
-SEARCH_CONFIG='SKU:SKU,Description:SKUDescription'
-INDEXED_FIELDS='SKU,SKUDescription'
+ID_FIELD='SKU'
+INDEXED_FIELDS='id,SKUDescription'
+RESULT_HEADERS='SKU:id,Description:SKUDescription'
 ```
 
 ## Setup
