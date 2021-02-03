@@ -17,8 +17,9 @@ const CREDENTIALS_PATH = process.env.CREDENTIALS_PATH || 'credentials.json';
 const TOKEN_PATH = process.env.TOKEN_PATH || 'token.json';
 const JSON_PATH = process.env.JSON_PATH || 'database.json';
 const APP_NAME = process.env.APP_NAME || 'Fondant';
-const SEARCH_CONFIG = process.env.SEARCH_CONFIG || '';
+const RESULT_HEADERS = process.env.RESULT_HEADERS || '';
 const SEARCH_INDEX_FIELDS = process.env.INDEXED_FIELDS || '';
+const ID_FIELD = process.env.ID_FIELD || 'id';
 const scope = process.env.READ_ONLY_SCOPE || 'https://www.googleapis.com/auth/spreadsheets.readonly';
 const SCOPES = [scope];   // If modifying these scopes, delete token.json.
 
@@ -36,16 +37,18 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     }
 
     /**
-     *  Destructively recreate database.
+     * Destructively recreate database.
      *
-     *  @returns {{sheets:Object[], searcher:Object} Sheet data and searcher
+     * @param {string[]} searchResultHeadings List of search result headings
+     * @param {string} idField The id field for the model
+     * @returns {{sheets:Object[], searcher:Object} Sheet data and searcher
      */
-    const createDatastore = async (searchResultHeadings) => {
+    const createDatastore = async (searchResultHeadings, idField) => {
       const content = await fsp.readFile(CREDENTIALS_PATH);
       const authClient = await authorize(SCOPES, TOKEN_PATH, JSON.parse(content));
-      const sheets = await read(SPREADSHEET_ID, authClient, RANGE.split(',').map(i => i.trim()));
+      const sheets = await read(SPREADSHEET_ID, idField, authClient, RANGE.split(',').map(i => i.trim()));
       await createDatabase(sheets, JSON_PATH);
-      const searcher = createSearcher(searchResultHeadings, sheets);
+      const searcher = createSearcher(searchResultHeadings, idField, sheets);
       return { sheets, searcher };
     };
 
@@ -66,13 +69,14 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      *  Read JSON.
      *
      * @param {string[]} searchResultHeadings Headings to use in the indexing
+     * @param {string} idField The id field of the model
      * @returns {{sheets:Object[], searcher:Object}} Read and return json.
      */
-    const readJson = async (searchResultHeadings) => {
+    const readJson = async (searchResultHeadings, idField) => {
       try {
         await fsp.access(JSON_PATH, fs.constants.R_OK);
         const sheets = JSON.parse(await fsp.readFile(JSON_PATH));
-        const searcher = createSearcher(searchResultHeadings, sheets);
+        const searcher = createSearcher(searchResultHeadings, idField, sheets);
         return { sheets, searcher };
       } catch (e) {
         console.log(e);
@@ -118,16 +122,16 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     /**
      * Create search metadata.
      *
-     *  @param {string} searchConfig Parse input search config
+     *  @param {string} resultHeaders Parse input search config
      *  @param {string} indexFieldConfig Parse input field config
      *  @returns {{searchResultHeadings:string[], searchRowPositions:string[], searchIndexFields:string[]}} Search Metadata
      */
-    const createSearchResultTableMetadata = (searchConfig, indexFieldConfig) => {
+    const createSearchResultTableMetadata = (resultHeaders, indexFieldConfig) => {
       const searchResultHeadings = [];
       const searchRowPositions = [];
       const searchIndexFields = [];
-      if (searchConfig) {
-        const items = searchConfig.split(',').map(i => i.trim());
+      if (resultHeaders) {
+        const items = resultHeaders.split(',').map(i => i.trim());
         for (let item of items) {
           const valueName = item.split(':');
           searchResultHeadings.push(valueName[0]);
@@ -157,6 +161,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         table.setHeading(...searchResultHeadings);
       }
       for (result of results) {
+        console.log(result);
         if (searchRowPositions.length) {
           table.addRow(...(searchRowPositions.map(r => result[r].slice(0, 128))));
         } else {
@@ -171,12 +176,14 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
      * Create searcher -- for fast searching
      *
      * @param {string[]} searchResultHeadings Headings from the search results
+     * @param {string} idField The id field
      * @param {Object[]} sheets All the sheets to index
      * @returns {Object} Searcher object
      */
-    const createSearcher = (searchResultHeadings, sheets) => {
+    const createSearcher = (searchResultHeadings, idField, sheets) => {
       const formattedFields = searchResultHeadings.map(s => toCamelCase(s));
       const searcher = new MiniSearch({
+        idField: ID_FIELD,
         fields: formattedFields, // fields to index for full-text search
         storeFields: formattedFields, // fields to return with search results
         searchOptions: {
@@ -196,8 +203,8 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
     };
 
     // main
-    const { searchResultHeadings, searchRowPositions, searchIndexFields } = createSearchResultTableMetadata(SEARCH_CONFIG, SEARCH_INDEX_FIELDS);
-    let { sheets, searcher } = await readJson(searchIndexFields);
+    const { searchResultHeadings, searchRowPositions, searchIndexFields } = createSearchResultTableMetadata(RESULT_HEADERS, SEARCH_INDEX_FIELDS);
+    let { sheets, searcher } = await readJson(searchIndexFields, ID_FIELD);
     init();
     while(true) {
       const { term } = await askForTerm();
@@ -217,7 +224,7 @@ const SCOPES = [scope];   // If modifying these scopes, delete token.json.
         const termParts = term.split(' ');
         const command = termParts[0].replace('!', '');
         if (command === 'reload' || command === 'refresh') {
-          const datastore = await createDatastore(searchIndexFields);
+          const datastore = await createDatastore(searchIndexFields, ID_FIELD);
           sheets = datastore.sheets;
           searcher = datastore.searcher;
           continue;
